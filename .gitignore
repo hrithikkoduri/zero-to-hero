@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+.DS_Store
+eli5_distilgpt2/
+my-bert-model/
+squad_distilbert_qa_model/
