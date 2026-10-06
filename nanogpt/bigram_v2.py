@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 import torch.nn as nn
 from torch.nn  import functional as F
 
@@ -16,7 +17,7 @@ torch.manual_seed(1337)
 
 # wget https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
 # read the dataset
-with open('input.txt', 'r', encoding='utf-8') as f:
+with open(Path(__file__).resolve().parent / 'input.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 # unique characters in the dataset
@@ -61,25 +62,6 @@ def estimate_loss():
     model.train()
     return out
     
-class Head(nn.Module):
-    def __init__(self, head_size):
-        super().__init__()
-        self.key = nn.Linear(n_embd, head_size, bias=False)
-        self.query = nn.Linear(n_embd, head_size, bias=False)
-        self.value = nn.Linear(n_embd, head_size, bias=False)
-        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        
-    def forward(self, x):
-        B,T,C = x.shape
-        k = self.key(x) # (B,T,head_size)
-        q = self.query(x) # (B,T,head_size)
-        v = self.value(x) # (B,T,head_size)
-        # compute attention scores
-        wei = q @ k.transpose(-2, -1) * C**-0.5 # (B,T,head_size) @ (B,head_size,T) -> (B,T,T)
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=-1)
-        out = wei @ v # (B,T,T) @ (B,T,head_size) -> (B,T,head_size)
-        return out
 
 # simple bigram model
 class BigramLanguageModel(nn.Module):
@@ -88,7 +70,6 @@ class BigramLanguageModel(nn.Module):
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.sa_head = Head(head_size=n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -96,7 +77,6 @@ class BigramLanguageModel(nn.Module):
         token_embeddings = self.token_embedding_table(idx) # (B,T,C)
         position_embeddings = self.position_embedding_table(torch.arange(T, device=device)) # (T,C)
         x = token_embeddings + position_embeddings # (B,T,C)
-        x = self.sa_head(x) # (B,T,head_size)
         logits = self.lm_head(x) # (B,T,vocab_size)
 
         if targets is None:

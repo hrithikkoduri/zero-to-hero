@@ -1,27 +1,23 @@
 import torch
+from pathlib import Path
 import torch.nn as nn
 from torch.nn  import functional as F
 
 # hyprtparameters
-batch_size = 64 #how many independent sequences will process in parallel
-block_size = 256 # wat is the maximum context length for preditction
-max_iters = 5000
-eval_interval = 500
-learning_rate = 3e-4
-dropout = 0.2
-n_layer = 6
-n_head = 6
-device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-print(f"Using {device} device")
+batch_size = 32 #how many independent sequences will process in parallel
+block_size = 8 # wat is the maximum context length for preditction
+max_iters = 3000
+eval_interval = 300
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 384
+n_embd = 32
 # ---------------------
 
 torch.manual_seed(1337)
 
 # wget https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
 # read the dataset
-with open('input.txt', 'r', encoding='utf-8') as f:
+with open(Path(__file__).resolve().parent / 'input.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 # unique characters in the dataset
@@ -73,8 +69,7 @@ class Head(nn.Module):
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.dropout = nn.Dropout(dropout)
-
+        
     def forward(self, x):
         B,T,C = x.shape
         k = self.key(x) # (B,T,head_size)
@@ -84,7 +79,6 @@ class Head(nn.Module):
         wei = q @ k.transpose(-2, -1) * C**-0.5 # (B,T,head_size) @ (B,head_size,T) -> (B,T,T)
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
-        wei = self.dropout(wei)
         out = wei @ v # (B,T,T) @ (B,T,head_size) -> (B,T,head_size)
         return out
 
@@ -92,14 +86,9 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-
-        self.proj = nn.Linear(n_embd, n_embd)
-        self.dropout = nn.Dropout(dropout)
-
+        
     def forward(self, x):
         out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.proj(out)
-        out = self.dropout(out)
         return out
 
 class FeedForward(nn.Module):
@@ -109,7 +98,6 @@ class FeedForward(nn.Module):
             nn.Linear(n_embd, 4 * n_embd),
             nn.ReLU(),
             nn.Linear(4 * n_embd, n_embd),
-            nn.Dropout(dropout)
         )
     def forward(self, x):
         return self.net(x)
@@ -120,12 +108,10 @@ class Block(nn.Module):
 
         self.sa = MultiHeadAttention(num_heads=n_head, head_size=n_embd // n_head)
         self.ffwd = FeedForward(n_embd)
-        self.ln1 = nn.LayerNorm(n_embd)
-        self.ln2 = nn.LayerNorm(n_embd)
 
     def forward(self, x):
-        x = x + self.sa(self.ln1(x)) # residual connection
-        x = x + self.ffwd(self.ln2(x)) # residual connection
+        x = self.sa(x)
+        x = self.ffwd(x)
         return x
 
 # simple bigram model
@@ -135,8 +121,11 @@ class BigramLanguageModel(nn.Module):
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.blocks = nn.Sequential(*[Block(n_embd, n_head=4) for _ in range(n_layer)])
-        self.ln_f = nn.LayerNorm(n_embd)
+        self.blocks = nn.Sequential(
+            Block(n_embd, n_head=4),
+            Block(n_embd, n_head=4),
+            Block(n_embd, n_head=4),
+        )
         self.lm_head = nn.Linear(n_embd, vocab_size) 
 
     def forward(self, idx, targets=None):
@@ -145,7 +134,6 @@ class BigramLanguageModel(nn.Module):
         position_embeddings = self.position_embedding_table(torch.arange(T, device=device)) # (T,C)
         x = token_embeddings + position_embeddings # (B,T,C)
         x = self.blocks(x) # (B,T,head_size)
-        x = self.ln_f(x) # (B,T,head_size)
         logits = self.lm_head(x) # (B,T,vocab_size)
 
         if targets is None:
@@ -178,7 +166,7 @@ model = BigramLanguageModel()
 m = model.to(device)
 
 # create a PyTorch optimizer
-optimizer = torch.optim.AdamW(m.parameters(), lr=learning_rate)
+optimizer = torch.optim.AdamW(m.parameters(), lr=1e-3)
 
 for iter in range(max_iters):
     

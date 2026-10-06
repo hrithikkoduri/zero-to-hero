@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 import torch.nn as nn
 from torch.nn  import functional as F
 
@@ -16,7 +17,7 @@ torch.manual_seed(1337)
 
 # wget https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt
 # read the dataset
-with open('input.txt', 'r', encoding='utf-8') as f:
+with open(Path(__file__).resolve().parent / 'input.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 # unique characters in the dataset
@@ -81,38 +82,6 @@ class Head(nn.Module):
         out = wei @ v # (B,T,T) @ (B,T,head_size) -> (B,T,head_size)
         return out
 
-class MultiHeadAttention(nn.Module):
-    def __init__(self, num_heads, head_size):
-        super().__init__()
-        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-        
-    def forward(self, x):
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        return out
-
-class FeedForward(nn.Module):
-    def __init__(self, n_embd):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(n_embd, 4 * n_embd),
-            nn.ReLU(),
-            nn.Linear(4 * n_embd, n_embd),
-        )
-    def forward(self, x):
-        return self.net(x)
-
-class Block(nn.Module):
-    def __init__(self, n_embd, n_head):
-        super().__init__()
-
-        self.sa = MultiHeadAttention(num_heads=n_head, head_size=n_embd // n_head)
-        self.ffwd = FeedForward(n_embd)
-
-    def forward(self, x):
-        x = self.sa(x)
-        x = self.ffwd(x)
-        return x
-
 # simple bigram model
 class BigramLanguageModel(nn.Module):
     def __init__(self):
@@ -120,19 +89,15 @@ class BigramLanguageModel(nn.Module):
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.blocks = nn.Sequential(
-            Block(n_embd, n_head=4),
-            Block(n_embd, n_head=4),
-            Block(n_embd, n_head=4),
-        )
-        self.lm_head = nn.Linear(n_embd, vocab_size) 
+        self.sa_head = Head(head_size=n_embd)
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
         B,T = idx.shape
         token_embeddings = self.token_embedding_table(idx) # (B,T,C)
         position_embeddings = self.position_embedding_table(torch.arange(T, device=device)) # (T,C)
         x = token_embeddings + position_embeddings # (B,T,C)
-        x = self.blocks(x) # (B,T,head_size)
+        x = self.sa_head(x) # (B,T,head_size)
         logits = self.lm_head(x) # (B,T,vocab_size)
 
         if targets is None:
