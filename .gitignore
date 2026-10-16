@@ -4,3 +4,8 @@ __pycache__/
 eli5_distilgpt2/
 my-bert-model/
 squad_distilbert_qa_model/
+
+# Downloaded GPT-2 checkpoint and the locally trained checkpoint.
+# Both are large and can be recreated from the notebooks.
+building_llms_from_scratch/**/gpt2/
+building_llms_from_scratch/**/model_and_optimizer.pth
