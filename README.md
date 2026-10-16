@@ -11,6 +11,7 @@ The thread through all three is the same. A small computation has a derivative. 
 - [Micrograd](#micrograd) — derivatives, a `Value` graph, backprop, a tiny MLP
 - [Makemore](#makemore) — character-level names, first by counting, then with an MLP
 - [nanoGPT](#nanogpt) — the same next-character idea, grown into a transformer
+- [Build a Large Language Model](#build-a-large-language-model) — Raschka's book, one folder per chapter
 - [How to run](#how-to-run)
 
 ## Micrograd
@@ -138,6 +139,21 @@ Part 2 — from that average to the full model.
 8. The forward pass of the finished model
 9. The scaled-up run, and where it computes
 10. What this model still is
+
+## Build a Large Language Model
+
+Notes and code from Sebastian Raschka's *Build a Large Language Model (From Scratch)*. Each chapter is its own folder under `building_llms_from_scratch/`. The notebooks are the implementation. The markdown files are the write-up, with the shapes and numbers from these runs.
+
+The text for the data and training chapters is Edith Wharton's short story *The Verdict*: 20,479 characters, 5,145 GPT-2 tokens.
+
+| | |
+|---|---|
+| Chapter 2 | [`01-data-prep/`](building_llms_from_scratch/01-data-prep/) — tokenization, the dataset windows, positional embeddings |
+| Chapter 3 | [`02-attention-mechanism/`](building_llms_from_scratch/02-attention-mechanism/) — causal multi-head attention |
+| Chapter 4 | [`03-llm-architecture/`](building_llms_from_scratch/03-llm-architecture/) — the GPT block, LayerNorm, the 124M model |
+| Chapter 5 | [`04-pretraining/`](building_llms_from_scratch/04-pretraining/) — the training loop, decoding, loading GPT-2 weights |
+
+The downloaded GPT-2 checkpoint and the locally trained `model_and_optimizer.pth` stay on disk and are gitignored. `gpt_download.py` in the pretraining folder fetches the checkpoint again.
 
 ## How to run
 
